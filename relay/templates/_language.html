@@ -1,0 +1,14 @@
+{# Language selector: changes on select (app.js); the button is for browsers without JavaScript #}
+<form method="get" action="/idioma" class="language-form">
+    <input type="hidden" name="next" value="{{ here }}">
+    <label for="language" class="sr-only">{{ t("language") }}</label>
+    <span class="language-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+    </span>
+    <select id="language" name="lang" data-autosubmit>
+        {% for code, name in languages.items() %}
+        <option value="{{ code }}" {% if code == lang %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+    </select>
+    <noscript><button type="submit" class="button button-small">{{ t("change_language") }}</button></noscript>
+</form>

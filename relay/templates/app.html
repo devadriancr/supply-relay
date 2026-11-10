@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{# Layout of the signed-in pages, like the supplier portal (TailAdmin): sidebar menu,
+   header and the page with its title. `tab` is the current page: vendors | schedule | history #}
+{% import "_icons.html" as icon %}
+
+{% set menu = [("/", "vendors", icon.building), ("/programacion", "schedule", icon.clock), ("/historial", "history", icon.list)] %}
+
+{% block body %}
+<a href="#content" class="skip-link">{{ t("skip_to_content") }}</a>
+<div class="app">
+    <aside class="sidebar" id="sidebar" aria-label="{{ t('menu') }}">
+        <a href="/" class="sidebar-logo">
+            <span class="brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h11l-3-3M20 17H9l3 3"/></svg>
+            </span>
+            <span class="sidebar-text brand-name">Supply Relay</span>
+        </a>
+
+        <nav class="sidebar-nav">
+            <h2 class="menu-title"><span class="sidebar-text">{{ t("menu") }}</span><span class="menu-dots" aria-hidden="true">···</span></h2>
+            <ul class="menu">
+                {% for href, key, menu_icon in menu %}
+                <li>
+                    <a href="{{ href }}" class="menu-item {{ 'menu-item-active' if tab == key else 'menu-item-inactive' }}"
+                       {% if tab == key %}aria-current="page"{% endif %} title="{{ t('nav_' ~ key) }}">
+                        <span class="menu-item-icon">{{ menu_icon }}</span>
+                        <span class="sidebar-text">{{ t("nav_" ~ key) }}</span>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </nav>
+
+        <div class="sidebar-widget sidebar-text">
+            <p class="muted small">{{ t("login_subtitle") }}</p>
+            <p class="strong">{{ portal_host }}</p>
+        </div>
+    </aside>
+    <div class="sidebar-backdrop" data-sidebar-close></div>
+
+    <div class="app-main">
+        <header class="header">
+            <button type="button" class="header-toggle" data-sidebar-toggle aria-controls="sidebar"
+                    aria-label="{{ t('menu') }}" data-tooltip="{{ t('menu') }}" data-tooltip-below>
+                <svg viewBox="0 0 16 12" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M.58 1c0-.41.34-.75.75-.75h13.34a.75.75 0 0 1 0 1.5H1.33A.75.75 0 0 1 .58 1Zm0 10c0-.41.34-.75.75-.75h13.34a.75.75 0 0 1 0 1.5H1.33a.75.75 0 0 1-.75-.75Zm.75-5.75a.75.75 0 0 0 0 1.5H8a.75.75 0 0 0 0-1.5H1.33Z"/></svg>
+            </button>
+
+            <div class="header-actions">
+                {% include "_language.html" %}
+                {% include "_theme_toggle.html" %}
+                <div class="user">
+                    <span class="avatar" aria-hidden="true">{{ (user or "?")[:2]|upper }}</span>
+                    <span class="user-name hide-mobile">{{ user }}</span>
+                </div>
+                <form method="post" action="/logout">
+                    <input type="hidden" name="csrf" value="{{ csrf }}">
+                    <button type="submit" class="icon-button icon-button-ghost" data-tooltip="{{ t('sign_out_tip') }}" data-tooltip-below data-tooltip-end
+                            aria-label="{{ t('sign_out_tip') }}">{{ icon.logout }}</button>
+                </form>
+            </div>
+        </header>
+
+        {% include "_flashes.html" %}
+
+        <main class="content" id="content">
+            <div class="page-head">
+                <h1>{% block heading %}{% endblock %}</h1>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li><a href="/">Supply Relay</a>{{ icon.next }}</li>
+                        <li aria-current="page">{{ self.heading() }}</li>
+                    </ol>
+                </nav>
+            </div>
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</div>
+{% block after %}{% endblock %}
+{% endblock %}

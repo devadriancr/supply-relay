@@ -1,0 +1,20 @@
+{% if flashes %}
+{# Floating notifications: they don't push the page down and close on their own (app.js) #}
+<div class="toasts" role="status" aria-live="polite">
+    {% for flash in flashes %}
+    <div class="toast toast-{{ flash.kind }}" data-toast>
+        <span class="toast-icon" aria-hidden="true">
+            {% if flash.kind == "error" %}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            {% else %}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>
+            {% endif %}
+        </span>
+        <p>{{ flash.message }}</p>
+        <button type="button" class="toast-close" data-toast-close data-tooltip="{{ t('close_tip') }}" data-tooltip-end aria-label="{{ t('close_tip') }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

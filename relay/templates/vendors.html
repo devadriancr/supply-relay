@@ -1,0 +1,117 @@
+{% extends "app.html" %}
+{% import "_icons.html" as icon %}
+
+{% set status_keys = {"ok": "status_ok", "error": "status_error", "partial": "status_partial", "running": "status_running"} %}
+
+{% block heading %}{{ t("vendors") }}{% endblock %}
+
+{% block content %}
+<section class="card" aria-labelledby="vendors-title">
+    <h2 id="vendors-title" class="sr-only">{{ t("vendors") }}</h2>
+
+    <div class="card-header toolbar">
+        <form method="post" action="/vendors" class="input-row">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <label for="number" class="sr-only">{{ t("vendor_number") }}</label>
+            <input id="number" name="number" type="text" inputmode="numeric" pattern="[0-9]{1,8}" maxlength="8"
+                   placeholder="{{ t('vendor_placeholder') }}" required>
+            <button type="submit" class="button" data-tooltip="{{ t('add_tip') }}">{{ icon.plus }} {{ t("add") }}</button>
+        </form>
+
+        <div class="section-actions">
+            {% if running %}
+            <span class="badge badge-running"><span class="spinner" aria-hidden="true"></span>{{ t("syncing") }}</span>
+            {% else %}
+            <a href="/programacion" class="next-sync">
+                {{ icon.clock }}
+                {% if next_run %}{{ t("next_sync", when=fmt_slot(next_run)) }}{% else %}{{ t("no_schedule") }}{% endif %}
+            </a>
+            {% endif %}
+            <form method="post" action="/sync">
+                <input type="hidden" name="csrf" value="{{ csrf }}">
+                <button type="submit" class="button button-primary" data-tooltip="{{ t('sync_all_tip') }}" data-tooltip-end
+                        {% if running or not active %}disabled{% endif %}>
+                    {{ icon.sync }} {{ t("sync_all") }}
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {% if vendors %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th scope="col">{{ t("col_vendor") }}</th>
+                    <th scope="col" class="num">{{ t("col_rows") }}</th>
+                    <th scope="col">{{ t("col_status") }}</th>
+                    <th scope="col">{{ t("col_last") }}</th>
+                    <th scope="col"><span class="sr-only">{{ t("col_actions") }}</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vendor in vendors %}
+                <tr class="{% if not vendor.active %}is-paused{% endif %}">
+                    <td data-label="{{ t('col_vendor') }}"><div>
+                        <span class="strong">{{ vendor.number }}</span>
+                        <span class="muted small block">{{ vendor.name or t("not_synced") }}</span>
+                    </div></td>
+                    <td data-label="{{ t('col_rows') }}" class="num"><div>{{ "{:,}".format(vendor.last_rows) if vendor.last_rows is not none else "—" }}</div></td>
+                    <td data-label="{{ t('col_status') }}"><div>
+                        {% if vendor.active %}<span class="badge badge-ok">{{ t("active") }}</span>{% else %}<span class="badge badge-muted">{{ t("paused") }}</span>{% endif %}
+                    </div></td>
+                    <td data-label="{{ t('col_last') }}"><div>
+                        {% if vendor.last_status %}
+                        {% set status_text = t(status_keys.get(vendor.last_status, "status_error")) %}
+                        <span class="last-sync">
+                            <span class="status-icon status-{{ vendor.last_status }}" data-tooltip="{{ status_text }}">{{ icon.status.get(vendor.last_status, icon.warning) }}</span>
+                            <span class="sr-only">{{ status_text }},</span>
+                            {{ fmt_time(vendor.last_sync_at) }}
+                        </span>
+                        {% if vendor.last_message %}<span class="error-text small block">{{ saved_message(vendor.last_message) }}</span>{% endif %}
+                        {% else %}
+                        <span class="muted">—</span>
+                        {% endif %}
+                    </div></td>
+                    <td class="actions"><div class="action-buttons">
+                        <form method="post" action="/vendors/{{ vendor.number }}/sync">
+                            <input type="hidden" name="csrf" value="{{ csrf }}">
+                            <button type="submit" class="icon-button icon-button-brand" data-tooltip="{{ t('sync_tip') }}" data-tooltip-end
+                                    aria-label="{{ t('sync_tip') }} ({{ vendor.number }})" {% if running or not vendor.active %}disabled{% endif %}>{{ icon.sync }}</button>
+                        </form>
+                        <form method="post" action="/vendors/{{ vendor.number }}/toggle">
+                            <input type="hidden" name="csrf" value="{{ csrf }}">
+                            {% if vendor.active %}
+                            <button type="submit" class="icon-button icon-button-warning" data-tooltip="{{ t('pause_tip') }}" data-tooltip-end
+                                    aria-label="{{ t('pause_tip') }} ({{ vendor.number }})">{{ icon.pause }}</button>
+                            {% else %}
+                            <button type="submit" class="icon-button icon-button-success" data-tooltip="{{ t('activate_tip') }}" data-tooltip-end
+                                    aria-label="{{ t('activate_tip') }} ({{ vendor.number }})">{{ icon.play }}</button>
+                            {% endif %}
+                        </form>
+                        <form method="post" action="/vendors/{{ vendor.number }}/delete"
+                              data-confirm="{{ t('confirm_remove', number=vendor.number) }}">
+                            <input type="hidden" name="csrf" value="{{ csrf }}">
+                            <button type="submit" class="icon-button icon-button-danger" data-tooltip="{{ t('remove_tip') }}" data-tooltip-end
+                                    aria-label="{{ t('remove_tip') }} ({{ vendor.number }})">{{ icon.trash }}</button>
+                        </form>
+                    </div></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty">
+        <p class="strong">{{ t("empty_title") }}</p>
+        <p class="muted">{{ t("empty_text") }}</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
+
+{% block after %}
+{% set confirm_title = t("confirm_title") %}
+{% set confirm_tip = t("confirm_yes_tip") %}
+{% include "_confirm.html" %}
+{% endblock %}

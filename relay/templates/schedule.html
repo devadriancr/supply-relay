@@ -1,0 +1,249 @@
+{% extends "app.html" %}
+{% import "_icons.html" as icon %}
+
+{% block heading %}{{ t("schedule_title") }}{% endblock %}
+
+{% block content %}
+<div class="stack">
+    {# What will happen next, and whether something is checking the schedule at all #}
+    <div class="stats">
+        <div class="stat">
+            <span class="stat-icon">{{ icon.clock }}</span>
+            <div>
+                <p class="muted small">{{ t("next_run") }}</p>
+                <p class="stat-value">{{ fmt_slot(next_run) if next_run else t("no_schedule") }}</p>
+            </div>
+        </div>
+        <div class="stat">
+            <span class="stat-icon {{ 'stat-icon-ok' if scheduler_alive else 'stat-icon-error' }}">{{ icon.sync }}</span>
+            <div>
+                <p class="muted small">{{ t("scheduler") }}</p>
+                {% if scheduler_alive %}
+                <p class="stat-value"><span class="badge badge-ok">{{ t("scheduler_ok", when=fmt_time(scheduler_checked_at)) }}</span></p>
+                {% else %}
+                <p class="stat-value"><span class="badge badge-error">{{ t("scheduler_off") }}</span></p>
+                <p class="muted small stat-help">{{ t("scheduler_off_help") }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# New schedule, like a trigger of Windows Task Scheduler: one row per setting, the label and a
+       hint on the left, the controls on the right. Only the recurrence of the chosen trigger shows
+       (CSS :has); the server ignores the fields of the others #}
+    <form method="post" action="/programacion" class="card schedule-form">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="card-header">
+            <div>
+                <h2>{{ t("new_schedule") }}</h2>
+                <p class="muted small">{{ t("schedule_intro") }}</p>
+            </div>
+        </div>
+
+        <div class="card-body settings">
+            <div class="settings-row">
+                <div class="settings-label">
+                    <label for="schedule-name" class="strong">{{ t("schedule_name") }}</label>
+                    <p class="muted small">{{ t("hint_name") }}</p>
+                </div>
+                <input id="schedule-name" name="name" type="text" maxlength="{{ max_name }}" class="input-name"
+                       placeholder="{{ t('schedule_name_placeholder') }}">
+            </div>
+
+            <div class="settings-row" role="radiogroup" aria-labelledby="trigger-label">
+                <div class="settings-label">
+                    <p id="trigger-label" class="strong">{{ t("trigger") }}</p>
+                    <p class="muted small">{{ t("hint_trigger") }}</p>
+                </div>
+                <div class="segmented">
+                    {% for kind in kinds %}
+                    <label>
+                        <input type="radio" name="kind" value="{{ kind }}" id="kind-{{ kind }}" {% if kind == "daily" %}checked{% endif %}>
+                        <span>{{ t("kind_" ~ kind) }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="settings-row" role="group" aria-labelledby="start-label">
+                <div class="settings-label">
+                    <p id="start-label" class="strong">{{ t("start") }}</p>
+                    <p class="muted small">{{ t("hint_start") }}</p>
+                </div>
+                <div class="inline-fields">
+                    <label class="sr-only" for="start-date">{{ t("start_date") }}</label>
+                    <input id="start-date" name="start_date" type="date" lang="{{ lang }}" value="{{ today }}" required>
+                    <label class="sr-only" for="start-time">{{ t("start_time") }}</label>
+                    <input id="start-time" name="start_time" type="time" value="06:00" required>
+                </div>
+            </div>
+
+            <div class="settings-row" role="group" aria-labelledby="recur-label">
+                <div class="settings-label">
+                    <p id="recur-label" class="strong">{{ t("recurrence") }}</p>
+                    <p class="muted small">{{ t("hint_recur") }}</p>
+                </div>
+                <div>
+                    <p class="trigger-section only-once muted">{{ t("hint_once") }}</p>
+
+                    <div class="trigger-section only-daily">
+                        <label class="inline-fields">
+                            {{ t("repeat_every_label") }}
+                            <input name="every_days" type="number" min="1" max="365" value="1" class="input-number">
+                            {{ t("unit_days") }}
+                        </label>
+                    </div>
+
+                    <div class="trigger-section only-weekly">
+                        <label class="inline-fields">
+                            {{ t("repeat_every_label") }}
+                            <input name="every_weeks" type="number" min="1" max="52" value="1" class="input-number">
+                            {{ t("unit_weeks") }}
+                        </label>
+                        <div class="day-options choice-gap" role="group" aria-label="{{ t('days') }}">
+                            {% for name in day_names %}
+                            <label class="day-option">
+                                <input type="checkbox" name="days" value="{{ loop.index }}" {% if loop.index <= 5 %}checked{% endif %}>
+                                <span>{{ name }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="trigger-section only-monthly">
+                        <p class="choice-title">{{ t("months") }}</p>
+                        <div class="choice-grid month-grid" role="group" aria-label="{{ t('months') }}">
+                            {% for name in month_names %}
+                            <label class="day-option">
+                                <input type="checkbox" name="months" value="{{ loop.index }}" checked>
+                                <span>{{ name }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        <p class="choice-title">{{ t("month_days") }}</p>
+                        <div class="choice-grid calendar-grid" role="group" aria-label="{{ t('month_days') }}">
+                            {% for number in range(1, 32) %}
+                            <label class="day-option">
+                                <input type="checkbox" name="month_days" value="{{ number }}" {% if number == 1 %}checked{% endif %}>
+                                <span>{{ number }}</span>
+                            </label>
+                            {% endfor %}
+                            <label class="day-option day-option-last">
+                                <input type="checkbox" name="month_days" value="{{ last_day }}">
+                                <span>{{ t("last_day") }}</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-row" role="group" aria-labelledby="advanced-label">
+                <div class="settings-label">
+                    <p id="advanced-label" class="strong">{{ t("advanced") }}</p>
+                    <p class="muted small">{{ t("hint_advanced") }}</p>
+                </div>
+                <div class="options">
+                    {# Its fields only take part while the box is checked (app.js) #}
+                    <div class="option" data-option>
+                        <label class="check">
+                            <input type="checkbox" name="repeat" value="1">
+                            <span>{{ t("repeat_task") }}</span>
+                        </label>
+                        <div class="inline-fields">
+                            <select name="repeat_every" aria-label="{{ t('repeat_task') }}">
+                                {% for minutes in repeat_every %}<option value="{{ minutes }}" {% if minutes == 30 %}selected{% endif %}>{{ duration(minutes) }}</option>{% endfor %}
+                            </select>
+                            <label for="repeat-for">{{ t("for_duration") }}</label>
+                            <select id="repeat-for" name="repeat_for">
+                                {% for minutes in repeat_for %}<option value="{{ minutes }}" {% if minutes == 720 %}selected{% endif %}>{{ duration(minutes) }}</option>{% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="option" data-option>
+                        <label class="check">
+                            <input type="checkbox" name="expires" value="1">
+                            <span>{{ t("expire") }}</span>
+                        </label>
+                        <div class="inline-fields">
+                            <input name="expires_date" type="date" lang="{{ lang }}" aria-label="{{ t('expire') }}">
+                            <input name="expires_time" type="time" value="23:59" aria-label="{{ t('expire') }}">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-footer">
+            <button type="submit" class="button button-primary" data-tooltip="{{ t('save_schedule_tip') }}" data-tooltip-end>{{ icon.ok }} {{ t("save") }}</button>
+        </div>
+    </form>
+
+    <section class="card" aria-labelledby="schedules-title">
+        <h2 id="schedules-title" class="sr-only">{{ t("schedule_title") }}</h2>
+        {% if schedules %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th scope="col">{{ t("col_schedule") }}</th>
+                        <th scope="col">{{ t("next_run") }}</th>
+                        <th scope="col">{{ t("col_status") }}</th>
+                        <th scope="col"><span class="sr-only">{{ t("col_actions") }}</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for schedule in schedules %}
+                    {% set schedule_label = label(schedule) %}
+                    {% set upcoming = next_run_of(schedule) %}
+                    <tr class="{% if not schedule.active %}is-paused{% endif %}">
+                        <td data-label="{{ t('col_schedule') }}"><div>
+                            <span class="badge badge-muted">{{ t("kind_" ~ schedule.kind) }}</span>
+                            {% if schedule.name %}<span class="strong">{{ schedule.name }}</span>{% endif %}
+                            <span class="muted small block">{{ describe(schedule) }}</span>
+                        </div></td>
+                        <td data-label="{{ t('next_run') }}"><div>
+                            {% if not schedule.active %}<span class="muted">—</span>
+                            {% elif upcoming %}{{ fmt_slot(upcoming) }}
+                            {% else %}<span class="muted">{{ t("expired") }}</span>{% endif %}
+                        </div></td>
+                        <td data-label="{{ t('col_status') }}"><div>
+                            {% if schedule.active %}<span class="badge badge-ok">{{ t("active") }}</span>{% else %}<span class="badge badge-muted">{{ t("paused") }}</span>{% endif %}
+                        </div></td>
+                        <td class="actions"><div class="action-buttons">
+                            <form method="post" action="/programacion/{{ schedule.id }}/toggle">
+                                <input type="hidden" name="csrf" value="{{ csrf }}">
+                                {% if schedule.active %}
+                                <button type="submit" class="icon-button icon-button-warning" data-tooltip="{{ t('pause_schedule_tip') }}" data-tooltip-end
+                                        aria-label="{{ t('pause_schedule_tip') }} ({{ schedule_label }})">{{ icon.pause }}</button>
+                                {% else %}
+                                <button type="submit" class="icon-button icon-button-success" data-tooltip="{{ t('activate_schedule_tip') }}" data-tooltip-end
+                                        aria-label="{{ t('activate_schedule_tip') }} ({{ schedule_label }})">{{ icon.play }}</button>
+                                {% endif %}
+                            </form>
+                            <form method="post" action="/programacion/{{ schedule.id }}/delete"
+                                  data-confirm="{{ t('confirm_remove_schedule', schedule=schedule_label) }}">
+                                <input type="hidden" name="csrf" value="{{ csrf }}">
+                                <button type="submit" class="icon-button icon-button-danger" data-tooltip="{{ t('remove_schedule_tip') }}" data-tooltip-end
+                                        aria-label="{{ t('remove_schedule_tip') }} ({{ schedule_label }})">{{ icon.trash }}</button>
+                            </form>
+                        </div></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty">
+            <p class="strong">{{ t("empty_schedule_title") }}</p>
+            <p class="muted">{{ t("empty_schedule_text") }}</p>
+        </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}
+
+{% block after %}
+{% set confirm_title = t("confirm_schedule_title") %}
+{% set confirm_tip = t("remove_schedule_tip") %}
+{% include "_confirm.html" %}
+{% endblock %}

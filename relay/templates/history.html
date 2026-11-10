@@ -1,0 +1,118 @@
+{% extends "app.html" %}
+{% import "_icons.html" as icon %}
+
+{% set sync_keys = {"ok": "sync_ok", "partial": "sync_partial", "error": "sync_error", "running": "sync_running"} %}
+
+{% block heading %}{{ t("history") }}{% endblock %}
+
+{% block content %}
+<section class="card" aria-labelledby="history-title">
+    <h2 id="history-title" class="sr-only">{{ t("history") }}</h2>
+
+    <form method="get" action="/historial" class="card-header filters" role="search" aria-label="{{ t('filter_history') }}">
+        <div class="filter-field filter-search">
+            <label for="history-vendor">{{ t("col_vendor") }}</label>
+            <div class="input-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <input id="history-vendor" name="vendor" type="search" inputmode="numeric" maxlength="8"
+                       value="{{ history.vendor }}" placeholder="{{ t('search_placeholder') }}">
+            </div>
+        </div>
+        <div class="filter-field">
+            <label for="history-from">{{ t("from") }}</label>
+            <input id="history-from" name="desde" type="date" lang="{{ lang }}" value="{{ history.start or '' }}">
+        </div>
+        <div class="filter-field">
+            <label for="history-to">{{ t("to") }}</label>
+            <input id="history-to" name="hasta" type="date" lang="{{ lang }}" value="{{ history.end or '' }}">
+        </div>
+        <div class="filter-actions">
+            <button type="submit" class="button button-primary" data-tooltip="{{ t('filter_tip') }}">{{ icon.filter }} {{ t("filter") }}</button>
+            {% if history.active %}
+            <a href="/historial" class="button" data-tooltip="{{ t('clear_tip') }}">{{ icon.clear }} {{ t("clear") }}</a>
+            {% endif %}
+            <a href="/historial.xlsx{{ '?' ~ export_query if export_query }}" class="button button-success"
+               data-tooltip="{{ t('download_excel_tip') }}" data-tooltip-end>
+                {{ icon.excel }} {{ t("download_excel") }}
+            </a>
+        </div>
+    </form>
+
+    {% if events %}
+    <ul class="history">
+        {% for event in events %}
+        {% set failed = event.kind == "sync" and event.status in ("error", "partial") %}
+        <li>
+            {% if event.kind == "sync" %}
+            <span class="status-icon status-{{ event.status }}">{{ icon.status.get(event.status, icon.warning) }}</span>
+            {% else %}
+            <span class="status-icon event-{{ event.kind }}">{{ icon.events[event.kind] }}</span>
+            {% endif %}
+
+            <div class="history-body">
+                <p class="history-title">
+                    {% if event.kind == "sync" %}
+                    {{ t(sync_keys.get(event.status, "sync_running")) }}
+                    {% elif event.kind.startswith("schedule_") %}
+                    {{ t("event_" ~ event.kind) }}: <span class="strong">{{ describe_schedule(event.message) }}</span>
+                    {% else %}
+                    {{ t("event_" ~ event.kind, vendor=('<span class="strong">%s</span>'|safe) % event.vendor) }}
+                    {% endif %}
+                </p>
+                <p class="muted small">
+                    {{ fmt_time(event.at) }} ·
+                    {% if event.kind == "sync" %}{{ t("trigger_manual" if event.actor == "manual" else "trigger_scheduled") }}
+                    {% elif event.actor == "seed" %}{{ t("actor_seed") }}
+                    {% else %}{{ event.actor }}{% endif %}
+                    {% if event.kind == "sync" and not failed and event.message %}· {{ saved_message(event.message) }}{% endif %}
+                </p>
+
+                {% if failed and event.message %}
+                {% set errors = saved_message(event.message).split(" | ") %}
+                <details class="error-details">
+                    <summary>{{ t("show_error") if errors|length == 1 else t("show_errors", count=errors|length) }}</summary>
+                    <ul>
+                        {% for error in errors %}<li>{{ error }}</li>{% endfor %}
+                    </ul>
+                </details>
+                {% endif %}
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted empty">{{ t("no_events_filtered") if history.active else t("no_events") }}</p>
+    {% endif %}
+
+    {% if page.total %}
+    <nav class="pagination" aria-label="{{ t('pagination') }}">
+        <p class="muted small">{{ t("showing", first=page.first, last=page.last, total=page.total) }}</p>
+        {% if page.pages > 1 %}
+        <div class="pages">
+            {% if page.number > 1 %}
+            <a href="{{ page_url(page.number - 1) }}" class="button button-small" rel="prev" aria-label="{{ t('previous_tip') }}">{{ icon.prev }} {{ t("previous") }}</a>
+            {% else %}
+            <span class="button button-small is-disabled" aria-hidden="true">{{ icon.prev }} {{ t("previous") }}</span>
+            {% endif %}
+
+            {% for number in page.numbers() %}
+            {% if number is none %}
+            <span class="page-gap" aria-hidden="true">…</span>
+            {% elif number == page.number %}
+            <span class="page-number is-current" aria-current="page">{{ number }}</span>
+            {% else %}
+            <a href="{{ page_url(number) }}" class="page-number" aria-label="{{ t('page_tip', number=number) }}">{{ number }}</a>
+            {% endif %}
+            {% endfor %}
+
+            {% if page.number < page.pages %}
+            <a href="{{ page_url(page.number + 1) }}" class="button button-small" rel="next" aria-label="{{ t('next_tip') }}">{{ t("next") }} {{ icon.next }}</a>
+            {% else %}
+            <span class="button button-small is-disabled" aria-hidden="true">{{ t("next") }} {{ icon.next }}</span>
+            {% endif %}
+        </div>
+        {% endif %}
+    </nav>
+    {% endif %}
+</section>
+{% endblock %}

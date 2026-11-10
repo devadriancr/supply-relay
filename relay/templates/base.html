@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    {% if running %}<noscript><meta http-equiv="refresh" content="5"></noscript>{% endif %}
+    <title>{% block title %}Supply Relay{% endblock %}</title>
+    <script src="{{ url_for('static', path='theme.js') }}"></script>
+    <link rel="icon" href="{{ url_for('static', path='favicon.svg') }}" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
+    <script src="{{ url_for('static', path='app.js') }}" defer></script>
+</head>
+<body{% if running %} data-auto-refresh{% endif %}>
+    {% block body %}{% endblock %}
+</body>
+</html>

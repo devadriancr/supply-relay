@@ -1,0 +1,16 @@
+{# Confirmation before removing something (app.js opens it for forms with data-confirm).
+   Set confirm_title and confirm_tip before including it. #}
+{% import "_icons.html" as icon %}
+<dialog class="modal" data-confirm-dialog aria-labelledby="confirm-title" aria-describedby="confirm-message">
+    <form method="dialog" class="modal-body">
+        <span class="modal-icon" aria-hidden="true">{{ icon.trash }}</span>
+        <div class="modal-text">
+            <h2 id="confirm-title">{{ confirm_title }}</h2>
+            <p id="confirm-message" class="muted" data-confirm-message></p>
+        </div>
+        <div class="modal-actions">
+            <button type="submit" value="cancel" class="button button-ghost" data-tooltip="{{ t('cancel_tip') }}" autofocus>{{ t("cancel") }}</button>
+            <button type="submit" value="confirm" class="button button-danger" data-tooltip="{{ confirm_tip }}" data-tooltip-end>{{ icon.trash }} {{ t("confirm_yes") }}</button>
+        </div>
+    </form>
+</dialog>
