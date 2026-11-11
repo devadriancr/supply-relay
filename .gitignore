@@ -1,6 +1,32 @@
+# Secrets: never commit them (the server has its own .env)
 .env
+.env.*
+!.env.example
+
+# Python environment and caches
 .venv/
+venv/
 __pycache__/
+*.py[cod]
 .pytest_cache/
+.coverage
+htmlcov/
+
+# Data of each installation: the local database, logs and backups
 data/
 logs/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+*.bak
+backups/
+
+# Editors and system files
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
