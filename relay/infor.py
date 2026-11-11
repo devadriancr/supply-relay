@@ -1,7 +1,7 @@
 """Reads Infor LX (read only) and builds what the portal receives.
 
 The queries are the ones the portal used to run itself (YPU202B labels and
-YPU204B1/B2 delivery instruction). Only the fields printed on those documents
+YPU204B1/B2 delivery instruction, YPU705B/YPU715B unreceived parts). Only the fields printed on those documents
 leave the company: no prices, costs, bank data or capacities.
 """
 
@@ -15,6 +15,14 @@ from relay.config import Settings
 ITEM_TYPES = "('G', 'P', 'Q', 'R')"
 CHUNK_SIZE = 200
 NO_UPPER_LIMIT = 99999999
+
+
+def one_year_before(today: date) -> date:
+    """Same day a year earlier (28 February when it would be a 29 that does not exist)."""
+    try:
+        return today.replace(year=today.year - 1)
+    except ValueError:
+        return today.replace(year=today.year - 1, day=28)
 
 
 # Value helpers. The ODBC driver returns fixed-width CHAR values and packed numbers.
@@ -106,6 +114,28 @@ def purchase_order_line(row: dict) -> dict | None:
     }
 
 
+def unreceived_line(row: dict) -> dict | None:
+    """Overdue PO line not fully received (YPU705B parts, YPU715B raw material)."""
+    due_date = to_date(row["PDDTE"])
+    if due_date is None:
+        return None
+    return {
+        "part_number": text(row["PPROD"]),
+        "number": number(row["PORD"]),
+        "line": number(row["PLINE"]),
+        "item_class": text(row["PCLAS"]) or "",
+        "quantity": quantity(row["PQORD"]),
+        "received_quantity": max(0.0, quantity(row.get("PQREC"))),
+        "due_date": due_date,
+        # Raw material only (YPU715B): mother material, symbol and size
+        "material": text(row.get("IMABRV")),
+        "symbol": text(row.get("IGLNO")),
+        "thickness": quantity(row.get("IMHIGH")),
+        "width": quantity(row.get("IMWIDE")),
+        "length": quantity(row.get("IMLONG")),
+    }
+
+
 def delivery_row(row: dict) -> dict | None:
     due_date = to_date(row["DDTE"])
     if due_date is None:
@@ -122,10 +152,12 @@ def delivery_row(row: dict) -> dict | None:
 
 
 def build_snapshot(vendor_row: dict, line_rows: list[dict], delivery_rows: list[dict],
-                   part_rows: list[dict], next_processes: dict[str, str]) -> dict:
+                   part_rows: list[dict], next_processes: dict[str, str],
+                   unreceived_rows: Sequence[dict] = ()) -> dict:
     lines = [line for line in map(purchase_order_line, line_rows) if line]
     deliveries = [row for row in map(delivery_row, delivery_rows) if row]
-    used = {row["part_number"] for row in lines + deliveries}
+    unreceived = [row for row in map(unreceived_line, unreceived_rows) if row]
+    used = {row["part_number"] for row in lines + deliveries + unreceived}
     parts = [
         part_fields(row, next_processes.get(text(row["IPROD"])))
         for row in part_rows
@@ -136,6 +168,7 @@ def build_snapshot(vendor_row: dict, line_rows: list[dict], delivery_rows: list[
         "part_numbers": list({part["number"]: part for part in parts}.values()),
         "purchase_order_lines": lines,
         "delivery_rows": deliveries,
+        "unreceived_lines": unreceived,
     }
 
 
@@ -192,12 +225,14 @@ class InforReader:
         from8 = int(since.strftime("%Y%m%d"))
         line_rows = self.label_lines(vendor, from8)
         delivery_rows = self.delivery_rows(vendor, from8)
+        unreceived_rows = self.unreceived_lines(vendor, date.today())
 
-        part_numbers = sorted({text(row["PPROD"]) for row in line_rows} | {text(row["PROD"]) for row in delivery_rows})
+        part_numbers = sorted({text(row["PPROD"]) for row in line_rows + unreceived_rows}
+                              | {text(row["PROD"]) for row in delivery_rows})
         part_rows = self.parts(part_numbers)
         next_processes = self.next_processes(vendor, part_numbers)
 
-        return build_snapshot(vendor_rows[0], line_rows, delivery_rows, part_rows, next_processes)
+        return build_snapshot(vendor_rows[0], line_rows, delivery_rows, part_rows, next_processes, unreceived_rows)
 
     def label_lines(self, vendor: int, from8: int) -> list[dict]:
         """Open PO lines of the vendor (YPU202B selection)."""
@@ -211,6 +246,27 @@ class InforReader:
                   AND P.PDDTE BETWEEN ? AND ?
                 ORDER BY P.PDDTE, P.PPROD, P.PORD, P.PLINE""",
             [vendor, from8, NO_UPPER_LIMIT],
+        )
+
+    def unreceived_lines(self, vendor: int, today: date) -> list[dict]:
+        """PO lines due before today and not fully received, from one year back.
+        Infor reads back to 2015-03-01; the portal only keeps the last year.
+        Item class P*/G* are parts (YPU705B); T* is raw material delivered to YKM
+        (PCUST = 0), with its material data from IIM (YPU715B)."""
+        # shortcut: YPU705B/715B read HPOL86 with the non-inventory flag '0'; that field is not
+        # filtered here. Add it if non-inventory lines show up in the portal.
+        return self.select(
+            f"""SELECT P.PORD, P.PLINE, P.PPROD, P.PCLAS, P.PQORD, P.PQREC, P.PDDTE,
+                       I.IMABRV, I.IGLNO, I.IMHIGH, I.IMWIDE, I.IMLONG
+                FROM {self.lib}.HPO AS P
+                         LEFT JOIN {self.lib}.IIM AS I ON I.IPROD = P.PPROD
+                WHERE P.PVEND = ?
+                  AND P.PDDTE >= ? AND P.PDDTE < ?
+                  AND P.PQREC < P.PQORD
+                  AND (SUBSTR(P.PCLAS, 1, 1) IN ('P', 'G')
+                       OR (SUBSTR(P.PCLAS, 1, 1) = 'T' AND P.PCUST = 0))
+                ORDER BY P.PDDTE, P.PPROD, P.PORD, P.PLINE""",
+            [vendor, int(one_year_before(today).strftime("%Y%m%d")), int(today.strftime("%Y%m%d"))],
         )
 
     def delivery_rows(self, vendor: int, from8: int) -> list[dict]:

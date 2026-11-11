@@ -12,6 +12,7 @@ from relay.config import get_settings
 # Vendor number in Infor (AVM) and its name; the name is replaced by Infor's on the first sync
 VENDORS = {
     101402: "MATSUJU MEXICANA SA DE CV",
+    400010: "HIRUTA MEXICO SA DE CV",
     400050: "NIFAST MEXICANA SA DE CV",
     400070: "NITTO DENKO DE MEXICO S DE RL DE CV",
     400110: "SK TEC MEXICANA SA DE CV",

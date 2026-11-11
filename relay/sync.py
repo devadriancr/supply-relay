@@ -51,7 +51,8 @@ def run_sync(settings: Settings, store: st.Store, trigger: str, vendors: list[in
                 try:
                     # The year of the previous month too: in January the portal shows December
                     year = date.today().year
-                    years = sorted({since.year, year, year + 1})
+                    # Last year too: unreceived lines go back one year and count their days late with it
+                    years = sorted({year - 1, since.year, year, year + 1})
                     calendars = infor.work_calendars(settings.calendar_facility, settings.calendar_work_center, years)
                     portal.send_work_calendars(calendars)
                     sent += 1
@@ -70,7 +71,7 @@ def run_sync(settings: Settings, store: st.Store, trigger: str, vendors: list[in
                         continue
 
                     portal.send_vendor(number, snapshot)
-                    rows = sum(len(snapshot[key]) for key in ("part_numbers", "purchase_order_lines", "delivery_rows"))
+                    rows = sum(len(snapshot.get(key, ())) for key in ("part_numbers", "purchase_order_lines", "delivery_rows", "unreceived_lines"))
                     store.record_vendor_result(number, st.OK, rows=rows, name=snapshot["vendor"]["name"])
                     sent += 1
                     log.info("Vendor %s sent: %s rows", number, rows)

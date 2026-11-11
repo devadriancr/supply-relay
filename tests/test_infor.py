@@ -1,4 +1,6 @@
-from relay.infor import InforReader, build_snapshot, shift, to_date
+from datetime import date
+
+from relay.infor import InforReader, build_snapshot, one_year_before, shift, to_date
 
 
 def test_dates_accept_both_infor_formats():
@@ -75,3 +77,29 @@ def test_years_not_loaded_in_infor_are_not_sent(settings):
 
     assert [calendar["year"] for calendar in calendars] == [2026]
     assert calendars[0]["days"].startswith("HHWW") and len(calendars[0]["days"]) == 366
+
+
+def test_unreceived_lines_carry_the_material_data_and_their_parts():
+    vendor = {"VNDNAM": "ACEROS", "VNALPH": "", "VNDAD1": "", "VNDAD2": "", "VNDAD3": "", "VSTATE": "", "VPOST": "",
+              "VCOUN": "", "VMFSCD": "", "VPHONE": "", "VCON": "", "VMDATN": ""}
+    unreceived = [
+        {"PORD": 777, "PLINE": 3, "PPROD": "COIL-1  ", "PCLAS": "T1", "PQORD": 1500.5, "PQREC": 500.0, "PDDTE": 20261001,
+         "IMABRV": "SPCC  ", "IGLNO": "SPCC-SD", "IMHIGH": 1.6, "IMWIDE": 1219.0, "IMLONG": 0},
+        {"PORD": 778, "PLINE": 1, "PPROD": "COIL-1", "PCLAS": "T1", "PQORD": 10, "PQREC": 0, "PDDTE": 0,
+         "IMABRV": None, "IGLNO": None, "IMHIGH": None, "IMWIDE": None, "IMLONG": None},
+    ]
+    parts = [{"IPROD": "COIL-1", "IDESC": "SPCC 1.6X1219", "IMBOXQ": 0, "IMSPKT": "", "IREF04": "", "IUFD14": ""}]
+
+    snapshot = build_snapshot(vendor, [], [], parts, {}, unreceived)
+
+    assert snapshot["unreceived_lines"] == [{
+        "part_number": "COIL-1", "number": 777, "line": 3, "item_class": "T1", "quantity": 1500.5,
+        "received_quantity": 500.0, "due_date": "2026-10-01", "material": "SPCC", "symbol": "SPCC-SD",
+        "thickness": 1.6, "width": 1219.0, "length": 0.0,
+    }]  # the line without date is left out
+    assert [part["number"] for part in snapshot["part_numbers"]] == ["COIL-1"]
+
+
+def test_unreceived_lines_go_back_one_year():
+    assert one_year_before(date(2026, 11, 10)) == date(2025, 11, 10)
+    assert one_year_before(date(2028, 2, 29)) == date(2027, 2, 28)  # no 29 February the year before

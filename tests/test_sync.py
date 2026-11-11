@@ -60,7 +60,8 @@ def test_sends_the_calendar_and_every_active_vendor(settings, store):
     store.set_active(101004, False)
 
     assert sync(settings, store) == st.OK
-    assert FakePortal.sent == [("calendars", 2), ("vendor", 200000), ("vendor", 400191)]
+    # Last year, this one and the next: unreceived lines go back one year
+    assert FakePortal.sent == [("calendars", 3), ("vendor", 200000), ("vendor", 400191)]
 
     vendor = store.vendor(400191)
     assert (vendor["name"], vendor["last_status"], vendor["last_rows"]) == ("YOROZU", st.OK, 4)
