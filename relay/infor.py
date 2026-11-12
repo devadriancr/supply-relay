@@ -123,6 +123,7 @@ def unreceived_line(row: dict) -> dict | None:
         "part_number": text(row["PPROD"]),
         "number": number(row["PORD"]),
         "line": number(row["PLINE"]),
+        "order_type": text(row["PID"]),
         "item_class": text(row["PCLAS"]) or "",
         "quantity": quantity(row["PQORD"]),
         "received_quantity": max(0.0, quantity(row.get("PQREC"))),
@@ -253,14 +254,15 @@ class InforReader:
         Infor reads back to 2015-03-01; the portal only keeps the last year.
         Item class P*/G* are parts (YPU705B); T* is raw material delivered to YKM
         (PCUST = 0), with its material data from IIM (YPU715B)."""
-        # shortcut: YPU705B/715B read HPOL86 with the non-inventory flag '0'; that field is not
-        # filtered here. Add it if non-inventory lines show up in the portal.
+        # PID 'PO' is what HPOL86 (YPU705B/715B) keeps; 'PZ' rows are not printed by Infor.
+        # shortcut: the non-inventory flag '0' of HPOL86 is not filtered here.
         return self.select(
-            f"""SELECT P.PORD, P.PLINE, P.PPROD, P.PCLAS, P.PQORD, P.PQREC, P.PDDTE,
+            f"""SELECT P.PORD, P.PLINE, P.PID, P.PPROD, P.PCLAS, P.PQORD, P.PQREC, P.PDDTE,
                        I.IMABRV, I.IGLNO, I.IMHIGH, I.IMWIDE, I.IMLONG
                 FROM {self.lib}.HPO AS P
                          LEFT JOIN {self.lib}.IIM AS I ON I.IPROD = P.PPROD
                 WHERE P.PVEND = ?
+                  AND P.PID = 'PO'
                   AND P.PDDTE >= ? AND P.PDDTE < ?
                   AND P.PQREC < P.PQORD
                   AND (SUBSTR(P.PCLAS, 1, 1) IN ('P', 'G')
