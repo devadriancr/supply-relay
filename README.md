@@ -95,6 +95,46 @@ En tu computadora, en lugar de la tarea, deja corriendo en otra ventana (como `s
 - El botón **Sincronizar** y el programador nunca corren al mismo tiempo; si a la hora programada hay una sincronización manual en curso, el programador lo vuelve a intentar al minuto siguiente.
 - `python -m relay.sync` sigue sirviendo para lanzar una sincronización completa a mano desde la consola.
 
+## Actualizar en el servidor
+
+El servidor tiene el proyecto clonado de GitHub. Después de hacer `commit` y `push` desde tu equipo, en el servidor (PowerShell como administrador). Cambia `SupplyRelay` por el nombre de tu Application Pool y `Supply Relay` por el de la tarea programada:
+
+```powershell
+cd C:\inetpub\supply-relay
+Import-Module WebAdministration
+
+# 1. Detener el programador y el sitio
+Stop-ScheduledTask -TaskName "Supply Relay"
+Stop-WebAppPool -Name "SupplyRelay"
+
+# 2. Código nuevo y dependencias
+git pull --ff-only
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+# 3. Iniciar de nuevo
+Start-WebAppPool -Name "SupplyRelay"
+Start-ScheduledTask -TaskName "Supply Relay"
+```
+
+`.env`, `data` y `logs` no están en git, así que `git pull` no los toca.
+
+### Refresh de la base local (como `migrate:fresh`) y seeder
+
+El relay no tiene migraciones: crea sus tablas solo al arrancar. Para dejar la base como nueva, hazlo entre el paso 2 y el 3:
+
+```powershell
+# Respaldo y borrado de la base (se recrea sola al arrancar)
+New-Item -ItemType Directory -Force dataackups | Out-Null
+Copy-Item dataelay.db "dataackupselay-$(Get-Date -Format yyyyMMdd-HHmmss).db"
+Remove-Item dataelay.db, dataelay.db-wal, dataelay.db-shm -ErrorAction SilentlyContinue
+
+# Seeder (como db:seed): agrega los proveedores de relay/seed.py que falten
+.venv\Scripts\python.exe -m relay.seed
+```
+
+- Borrar la base elimina los **proveedores dados de alta, el historial y las programaciones**. El `.env` (contraseña de administrador, `SYNC_KEY`) se conserva.
+- El seeder se puede correr solo, sin borrar nada: únicamente agrega los proveedores que no existan. Las programaciones hay que volver a crearlas en la pestaña **Programación**.
+
 ## Centro de trabajo del calendario
 
 El calendario de FSC depende de la planta (`SCFAC = 'YK1'`) y del centro de trabajo (`SCRKC`). Para saber cuál es el de la planta, compara en Infor:
